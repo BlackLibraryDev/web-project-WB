@@ -9,9 +9,8 @@ export default class TooltipScene extends Phaser.Scene {
         const _width = 320; // 툴팁 기본 너비
 
         // 2. 패널 배경 (디자인에 맞게 크기 조절)
-        this.bg = this.add.rectangle(0, 0, _width, 140, 0x111111, 0.95)
-                           .setOrigin(0)
-                           .setStrokeStyle(1, 0xffffff, 0.3);
+        // 🌟 [수정] 기존 Rectangle 대신 Graphics 객체를 사용하여 배경과 테두리를 동적으로 그립니다.
+        this.bg = this.add.graphics();
 
         // 3. 내부 텍스트 구성 (이름, 태그, 설명 등)
         this.titleText = this.add.text(12, 12, '', { font: 'bold 32px Arial', fill: '#ffcc00' });
@@ -54,8 +53,16 @@ export default class TooltipScene extends Phaser.Scene {
 
         // 텍스트 길이에 맞춰 배경 세로 크기 동적 조절 (센스 꿀팁!)
         const textBottom = this.descText.y + this.descText.displayHeight;
-        this.bg.height = Math.max(100, textBottom + 12);
-      
+        const dynamicHeight = Math.max(100, textBottom + 12);
+        const dynamicWidth = 280; // 가로는 고정
+        this.bg.clear();
+        // 1. 내부 채우기 색상 설정 (배경)
+        this.bg.fillStyle(0x111111, 0.95);
+        this.bg.fillRect(0, 0, dynamicWidth, dynamicHeight);
+
+        // 2. 외곽 테두리 선 설정 (테두리도 이제 크기에 맞춰서 새로 그려집니다!)
+        this.bg.lineStyle(1, 0xffffff, 0.3);
+        this.bg.strokeRect(0, 0, dynamicWidth, dynamicHeight);
 
         // 위치 갱신
         this.updatePosition(pointer);

@@ -419,8 +419,68 @@ export default class InventoryScene extends Phaser.Scene {
                 this.registry.set('playerInventory', inv);
             }
         });
-
-
-       
+        this.drawWeightBar() ;
     }
+
+    drawWeightBar() {
+        const centerX = this.cameras.main.width / 2;
+        const centerY = this.cameras.main.height / 2;
+
+        // 1. 무게 데이터 가져오기 (현재 무게 계산 및 최대 무게 설정)
+        const playerInventory = this.registry.get('playerInventory') || [];
+        
+        // 가방 안의 모든 아이템 무게 합산 (아이템 데이터에 weight 속성이 있다고 가정, 없으면 기본값 1)
+        let currentWeight = playerInventory.reduce((sum, item) => {
+            if (!item) return sum;
+            const itemWeight = item.weight !== undefined ? item.weight : 1; 
+            return sum + (itemWeight * (item.count || 1));
+        }, 0);
+
+        const maxWeight = 10000; // 가방 최대 무게 제한
+        
+        // 비율 계산 (0.0 ~ 1.0 사이로 안전하게 고정)
+        const weightRatio = Phaser.Math.Clamp(currentWeight / maxWeight, 0, 1);
+
+        // 2. UI 좌표 및 크기 설정
+        const barX = centerX - 160;       // 가방 슬롯 시작 정렬과 맞춤
+        const barY = centerY*2 - 200;       // 인벤토리 창 하단 부근
+        const barWidth = 320;             // 가로 바 총 길이
+        const barHeight = 16;             // 가로 바 두께
+
+        // 3. ⚖️ 아이콘 및 텍스트 표시
+        // 기존에 이미 그려진 게 있다면 지워지도록 itemGroup에 추가합니다.
+        const weightIcon = this.add.text(barX, barY - 25, `⚖️ ${currentWeight/1000} / ${maxWeight/1000}`, {
+            font: 'bold 24px Arial',
+            fill: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 3
+        });
+        this.itemGroup.add(weightIcon);
+
+        // 4. 🎨 Graphics 객체로 가로 바 그리기
+        const graphics = this.add.graphics();
+        this.itemGroup.add(graphics); // 리렌더링 시 같이 지워지도록 그룹에 포함
+
+        // [A] 배경 바 (어두운 회색)
+        graphics.fillStyle(0x222222, 1);
+        graphics.fillRect(barX, barY, barWidth, barHeight);
+        
+        // 테두리 선 추가
+        graphics.lineStyle(1, 0xffffff, 0.3);
+        graphics.strokeRect(barX, barY, barWidth, barHeight);
+
+        // [B] 채워지는 무게 게이지 바 (무게가 무거워질수록 색상이 변하는 센스!)
+        // 80% 미만은 주황/노란빛, 80% 이상 무거워지면 경고 의미로 빨간색
+        let barColor = 0xe67e22; // 기본 주황색
+        if (weightRatio >= 0.8) {
+            barColor = 0xc0392b; // 경고 빨간색
+        }
+
+        if (weightRatio > 0) {
+            graphics.fillStyle(barColor, 1);
+            // 계산된 비율(weightRatio)만큼 가로 길이를 곱해서 그려줍니다.
+            graphics.fillRect(barX + 2, barY + 2, (barWidth - 4) * weightRatio, barHeight - 4);
+        }
+    }
+    
 }
