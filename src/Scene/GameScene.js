@@ -16,11 +16,20 @@ export default class GameScene extends Phaser.Scene {
         this.player.speed = 300; // 플레이어 속도 설정
         this.player.addItem( this.getItem('apple', 40));
         this.player.addItem( this.getItem('saw'));
+        this.player.addItem( this.getItem('sword'));
         this.player.addItem( this.getItem('coin'));
         this.player.addItem( this.getItem('apple'));
         this.player.addItem( this.getItem('coin',99));
         
-        this.player.addItem( this.getItem('coin'));
+        this.player.addItem( this.getItem('milk'));
+        this.player.addItem( this.getItem('bottle'));
+        this.player.addItem( this.getItem('summerhat'));
+        this.player.addItem( this.getItem('dress'));
+
+        // 🌟 매우 중요: 메인 게임 위에 UI 씬을 오버레이로 얹어줍니다.
+        this.scene.launch('UIScene');
+        this.scene.launch('TooltipScene');    // 3층 (여기는 항상 켜두고 평소엔 숨김 처리)
+
         // 키보드 및 조이스틱 설정
         this.cursors = this.input.keyboard.createCursorKeys();
         this.wasd = this.input.keyboard.addKeys('W,A,S,D');

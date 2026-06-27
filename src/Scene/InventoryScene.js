@@ -70,56 +70,90 @@ export default class InventoryScene extends Phaser.Scene {
         trashBg.setInteractive({ dropZone: true });
         this.itemGroup.add(trashBg);
 
+        // 1. 장비 슬롯 설정 정의 (부위별 키값, 위치, 가이드 문구)
+        const equipSlots = [
+            { key: 'weapon',  x: centerX - 240, y: centerY - 320, label: 'Weapon' },
+            { key: 'armor',   x: centerX - 120,  y: centerY - 320, label: 'Armor' },
+            { key: 'helmet',  x: centerX,       y: centerY - 320, label: 'Helmet' },
+            // 추가하고 싶은 부위가 있다면 여기에 한 줄만 더 쓰면 끝납니다!
+        ];
+        const validKeys = equipSlots.map(slot => slot.key);
 
-        // --- 2. 장비창(무기 슬롯) 만들기 ---
-        const equipX = centerX - 200;
-        const equipY = centerY - 320;
-        
-        // 현재 장착 중인 무기 데이터 가져오기 (레지스트리나 플레이어 객체에서)
-        const equippedWeapon = this.registry.get('equippedWeapon') || null;
-        let equipBgColor = equippedWeapon ? 0x224488 : 0x333333; // 장착 중이면 파란 빛
+        // 2. 반복문으로 모든 장비 슬롯 자동 생성
+        equipSlots.forEach(slot => {
+            // 레지스트리 키 규칙을 'equipped_' + key 로 통일하면 편리합니다.
+            const equippedItem = this.registry.get(`equipped_${slot.key}`) || null;
+            let equipBgColor = equippedItem ? 0x224488 : 0x333333;
 
-        const equipBg = this.add.rectangle(equipX, equipY, slotSize, slotSize, equipBgColor)
-                            .setOrigin(0, 0)
-                            .setStrokeStyle(2, 0xffd700, 0.5); // 골드 테두리
-        
-        // 장비 슬롯 전용 데이터 심기 및 드롭존 설정
-        equipBg.setData('slotType', 'equipment');
-        equipBg.setData('slotIndex', 'weapon'); // 무기 슬롯임을 명시
-        equipBg.setInteractive({ dropZone: true });
-        this.itemGroup.add(equipBg);
-
-        // 장착된 아이템이 있다면 이모지 그리기
-        if (equippedWeapon) {
-            const equipIcon = this.add.text(equipX+slotSize/2 , equipY+slotSize/2 , equippedWeapon.icon, { font: `${iconSize}px Arial` }).setOrigin(0.5);
-            this.itemGroup.add(equipIcon);
+            // 슬롯 배경 그리기
+            const equipBg = this.add.rectangle(slot.x, slot.y, slotSize, slotSize, equipBgColor)
+                                .setOrigin(0, 0)
+                                .setStrokeStyle(2, 0xffd700, 0.5);
             
-            // (선택) 장착창의 아이템도 다시 드래그해서 인벤토리로 보낼 수 있게 설정 가능
-            equipIcon.setInteractive({ useHandCursor: true });
-            this.input.setDraggable(equipIcon);
-            equipIcon.setData('fromIndex', 'weapon'); // 출발지가 가방이 아니라 'weapon'창임
-            equipIcon.setData('originX', equipX+slotSize/2 );
-            equipIcon.setData('originY', equipY+slotSize/2 );
-            
-            // 드래그 이벤트 연결 (가방 아이템과 동일하게 처리)
-            equipIcon.on('drag', (pointer, dragX, dragY) => { 
-                equipIcon.setDepth(100); 
-                equipIcon.x = dragX; 
-                equipIcon.y = dragY; 
-                equipIcon.setFontSize(iconSize + 32);
-            });
-            equipIcon.on('dragend', () => { 
-                equipIcon.x = equipIcon.getData('originX'); 
-                equipIcon.y = equipIcon.getData('originY'); 
-                equipIcon.setDepth(1);
-                equipIcon.setFontSize(iconSize);
-            });
-        } else {
-            // 빈 슬롯일 때 가이드 글씨
-            const guideText = this.add.text(equipX + 32, equipY + 32, 'WEAPON', { font: '24px Arial', fill: '#888888' }).setOrigin(0.5);
-            this.itemGroup.add(guideText);
-        }
+            equipBg.setData('slotType', 'equipment');
+            equipBg.setData('slotIndex', slot.key); // 'weapon', 'armor' 등이 들어감
+            equipBg.setInteractive({ dropZone: true });
+            this.itemGroup.add(equipBg);
 
+            if (equippedItem) {
+                // 장착된 아이템 아이콘 생성
+                const equipIcon = this.add.text(slot.x + slotSize / 2, slot.y + slotSize / 2, equippedItem.icon, 
+                    { font: `${iconSize}px Arial` }).setOrigin(0.5);
+                this.itemGroup.add(equipIcon);
+
+                // 드래그 설정 및 데이터 심기
+                equipIcon.setInteractive({ useHandCursor: true });
+                this.input.setDraggable(equipIcon);
+                equipIcon.setData('fromIndex', slot.key); // 출발지 저장 ('weapon', 'armor' 등)
+                equipIcon.setData('originX', slot.x + slotSize / 2);
+                equipIcon.setData('originY', slot.y + slotSize / 2);
+
+                // 드래그 이벤트 (모든 부위 공용)
+                equipIcon.on('drag', (pointer, dragX, dragY) => {
+                    equipIcon.setDepth(100);
+                    equipIcon.x = dragX;
+                    equipIcon.y = dragY;
+                    equipIcon.setFontSize(iconSize + 32);
+                });
+                equipIcon.on('dragend', () => {
+                    equipIcon.x = equipIcon.getData('originX');
+                    equipIcon.y = equipIcon.getData('originY');
+                    equipIcon.setDepth(1);
+                    equipIcon.setFontSize(iconSize);
+                });
+                
+                // 툴팁 연동 (저번에 구현한 툴팁도 공용 적용)
+                equipIcon.on('pointerover', (pointer) => this.scene.get('TooltipScene')?.show(pointer, equippedItem));
+                equipIcon.on('pointermove', (pointer) => this.scene.get('TooltipScene')?.updatePosition(pointer));
+                equipIcon.on('pointerout', () => this.scene.get('TooltipScene')?.hide());
+
+                // 🌟 가방 이모지 더블 터치 이벤트 추가
+                let lastClickTime = 0;
+                equipIcon.on('pointerdown', (pointer) => {
+                    const clickDelay = pointer.time - lastClickTime;
+                    lastClickTime = pointer.time;
+
+                    // 350ms(0.35초) 이내에 다시 누르면 더블 터치로 판정
+                    if (clickDelay < 350) {
+                       //console.log('가방 아이템 더블 터치 감지:', equippedItem.id);
+                         const currentEquip = this.registry.get(`equipped_${slot.key}`);
+                        if (currentEquip) {
+                            let inv = this.registry.get('playerInventory') || [];
+                            inv.push(equippedItem);
+                            this.registry.set(`equipped_${slot.key}`, null);
+                            this.registry.set('playerInventory', inv);
+                            
+                        }
+
+                    }
+                });
+
+            } else {
+                // 빈 슬롯일 때 부위별 가이드 텍스트 표시
+                const guideText = this.add.text(slot.x + slotSize / 2, slot.y + slotSize / 2, slot.label, { font: '24px Arial', fill: '#888888' }).setOrigin(0.5);
+                this.itemGroup.add(guideText);
+            }
+        });
         // 슬롯과 아이템들을 담을 임시 배열 (드롭 대상 감지용)
         const slotZones = [];
 
@@ -198,6 +232,8 @@ export default class InventoryScene extends Phaser.Scene {
                         countText.y = dragY + slotSize / 2 - 6;
                         countText.setDepth(102);
                     }; // 숫자 숨기기
+                   // const tooltipScene = this.scene.get('TooltipScene');
+                   // if (tooltipScene) tooltipScene.hide(); // 드래그 중엔 숨김
                 });
 
                 // [수정] 드래그가 완전히 끝났을 때 (성공/실패 불문하고 무조건 실행)
@@ -215,6 +251,66 @@ export default class InventoryScene extends Phaser.Scene {
                         countText.y = icon.y + slotSize / 2 - 6;
                         countText.setDepth(2);
                     };
+                    const tooltipScene = this.scene.get('TooltipScene');
+                    if (tooltipScene) tooltipScene.hide(); // 드래그 중엔 숨김
+                });
+
+                // 1. 마우스가 아이콘 위에 올라갔을 때 (Show)
+                icon.on('pointerover', (pointer) => {
+                    // 다른 씬을 부를 때는 this.scene.get('씬KEY')로 객체를 직접 획득할 수 있습니다.
+                    const tooltipScene = this.scene.get('TooltipScene');
+                    if (tooltipScene) {
+                        tooltipScene.show(pointer, itemData);
+                    }
+                });
+
+                // 2. 마우스가 슬롯 안에서 움직일 때 (Move)
+                icon.on('pointermove', (pointer) => {
+                    const tooltipScene = this.scene.get('TooltipScene');
+                    if (tooltipScene) {
+                        tooltipScene.updatePosition(pointer);
+                    }
+                });
+
+                // 3. 마우스가 나갔을 때 (Hide)
+                icon.on('pointerout', () => {
+                    const tooltipScene = this.scene.get('TooltipScene');
+                    if (tooltipScene) {
+                        tooltipScene.hide();
+                    }
+                });
+
+                // 🌟 가방 이모지 더블 터치 이벤트 추가
+                let lastClickTime = 0;
+                icon.on('pointerdown', (pointer) => {
+                    const clickDelay = pointer.time - lastClickTime;
+                    lastClickTime = pointer.time;
+
+                    // 350ms(0.35초) 이내에 다시 누르면 더블 터치로 판정
+                    if (clickDelay < 350) {
+                        //console.log('가방 아이템 더블 터치 감지:', itemData.id);
+                        // 아이템의 type을 소문자로 바꿔서 타겟 슬롯 키 생성 (예: 'WEAPON' -> 'weapon')
+                        const targetSlotKey = itemData.type.toLowerCase(); 
+                        //console.log(validKeys, targetSlotKey);
+                        if(validKeys.includes(targetSlotKey)){
+                            let inv = this.registry.get('playerInventory') || [];
+                            const currentEquip = this.registry.get(`equipped_${targetSlotKey}`) || null;
+
+                            // 드래그했던 것과 똑같은 데이터 연산 수행
+                            inv.splice(i, 1); // 현재 인덱스(i)에서 아이템 제거
+                            if (currentEquip) inv.splice(i,0,currentEquip); // 기존 템 밀어내기
+
+                            // 데이터 셋팅 -> 자동으로 renderInventory 리렌더링 유도
+                            this.scene.get('TooltipScene')?.hide(); // 툴팁 숨기기
+                            this.registry.set(`equipped_${targetSlotKey}`, itemData);
+                            this.registry.set('playerInventory', inv);
+                        }else{
+                            return;
+                        }
+                            
+                        
+                        
+                    }
                 });
             }
         }
@@ -228,46 +324,56 @@ export default class InventoryScene extends Phaser.Scene {
             const toIndex = dropZone.getData('slotIndex');     // 도착지 인덱스 (숫자 0~19 또는 'weapon')
 
             let inv = this.registry.get('playerInventory') || [];
-            let currentEquip = this.registry.get('equippedWeapon') || null;
 
             // 🗑️ 케이스 A: [버리기] 휴지통에 드롭했을 때
             if (targetType === 'trash') {
-                if (fromIndex === 'weapon') {
-                    // 장착창에서 바로 버린 경우
-                    console.log('버린 장착 아이템:', currentEquip);
-                    this.registry.set('equippedWeapon', null);
-                    this.registry.set('playerInventory', inv);
+                if (typeof fromIndex === 'string') {
+                    // 🌟 장착창('weapon', 'armor' 등)에서 바로 휴지통으로 던진 경우
+                    console.log(`${fromIndex} 부위 아이템 버림:`, this.registry.get(`equipped_${fromIndex}`));
+                    this.registry.set(`equipped_${fromIndex}`, null);
                 } else {
-                    // 가방에서 버린 경우 배열에서 비우기
-                    //inv[fromIndex] = null;
-                    console.log('버린 아이템:', inv[fromIndex]);
-                    inv.splice(fromIndex, 1); // 배열에서 제거
-                    this.registry.set('playerInventory', inv);
+                    // 가방(인덱스 숫자)에서 버린 경우 앞으로 당기기
+                    console.log('가방에서 아이템 버림:', inv[fromIndex]);
+                    inv.splice(fromIndex, 1);
                 }
-                return; // 리렌더링은 Registry 이벤트가 감지하여 자동 실행됨
+                
+                this.registry.set('playerInventory', inv);
+                const tooltipScene = this.scene.get('TooltipScene');
+                if (tooltipScene) tooltipScene.hide(); // 드래그 중엔 숨김
+                return;
             }
 
             // ⚔️ 케이스 B: [장착하기] 가방에서 장비 슬롯으로 드롭했을 때
-            if (targetType === 'equipment' && toIndex === 'weapon') {
+            if (targetType === 'equipment' ) {
                 const dragItem = inv[fromIndex];
-                if (dragItem && dragItem.type === 'tools') { // 장비 아이템일 때만 장착 가능
+                if (dragItem  ) { // 장비 아이템일 때만 장착 가능
+
+                    if (dragItem.type.toUpperCase() !== toIndex.toUpperCase()) {
+                        console.log(`❌ 장착 실패: ${dragItem.type}은(는) ${toIndex} 슬롯에 장착할 수 없습니다!`);
+                        return; // 조건을 만족하지 않으면 여기서 함수를 종료시켜 드롭을 취소합니다.
+                    }
+                    
                     // 기존 장착 무기가 있었다면 가방의 그 자리로 돌려보내고, 새 무기를 장착 (Swap)
                     //inv[fromIndex] = currentEquip; 
+                    const currentEquip = this.registry.get(`equipped_${toIndex}`) || null;
                     if(currentEquip!=null){ inv.push(currentEquip); } // 기존 장착 무기가 있었다면 가방에 추가
                     inv.splice(fromIndex, 1); // 드래그한 아이템은 가방에서 제거
-                    this.registry.set('equippedWeapon', dragItem);
+                    this.registry.set(`equipped_${toIndex}`, dragItem);
                     this.registry.set('playerInventory', inv);
+                    const tooltipScene = this.scene.get('TooltipScene');
+                    if (tooltipScene) tooltipScene.hide(); // 드래그 중엔 숨김
                 }
                 return;
             }
            // 🎒 케이스 C: [장착 해제] 장비 슬롯에서 일반 가방 슬롯으로 드롭했을 때
-            if (fromIndex === 'weapon' && targetType === 'inventory') {
+            if (typeof fromIndex === 'string' && targetType === 'inventory') {
+                const currentEquip = this.registry.get(`equipped_${fromIndex}`);
                 if (currentEquip) {
-                    // 장착 해제된 아이템은 가방의 맨 뒤로 들어갑니다 (빈칸이 없어야 하므로)
-                    //inv.push(currentEquip);
                     inv.splice(toIndex, 0, currentEquip); // 드롭한 위치에 장착 해제 아이템 삽입
-                    this.registry.set('equippedWeapon', null);
+                    this.registry.set(`equipped_${fromIndex}`, null);
                     this.registry.set('playerInventory', inv);
+                    const tooltipScene = this.scene.get('TooltipScene');
+                     if (tooltipScene) tooltipScene.hide(); // 드래그 중엔 숨김
                 }
                 return;
             }
@@ -307,7 +413,8 @@ export default class InventoryScene extends Phaser.Scene {
                         inv[toIndex] = temp;
                     }
                 }
-
+                const tooltipScene = this.scene.get('TooltipScene');
+                if (tooltipScene) tooltipScene.hide(); // 드래그 중엔 숨김
                 
                 this.registry.set('playerInventory', inv);
             }

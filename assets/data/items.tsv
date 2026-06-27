@@ -1,4 +1,14 @@
-id	type	icon	price	tags	count
-apple	foods	🍏	100	#rawfood	
-saw	tools	🪚	80	#iron	
-coin	money	🪙	1	#money	-1
+id	icon	type	subType	price	tags	weight	count
+coin	🪙	payment	bronze	1	#payment	10	-1
+apple	🍏	foods	rawfood	100	#food#rawfood#ingredient	100	
+cake	🍰	foods	cooked	400	#food#cooked	120	
+sword	🗡️	weapon	sword	100	#iron	2200	
+saw	🪚	weapon	tools	80	#iron#wood	1600	
+woodaxe	🪓	weapon	tools	70	#iron#wood#canWood	2400	
+bottle	🫙	fluidContainer	empty	10	#empty	100	
+milk	🥛	fluidContainer	milk	40	#milk	100	
+water	🫙	fluidContainer	water	10	#water	100	
+potion	💊	fluidContainer	potion	100	#potion	100	
+shirt	👕	armor	cloth	20	#cloth	300	
+dress	👗	armor	cloth	100	#cloth	400	
+summerhat	👒	helmet	hat	10	#linen	100	

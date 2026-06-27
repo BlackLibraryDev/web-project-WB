@@ -1,7 +1,10 @@
 // 외부에서 만든 씬(Scene)들을 가져옵니다.
 import PreloadScene from './Scene/PreloadScene.js';
 import GameScene from './Scene/GameScene.js';
+import UIScene from './Scene/UIScene.js';
+import TooltipScene from './Scene/TooltipScene.js';
 import InventoryScene from './Scene/InventoryScene.js';     
+
 
 // 1. 게임의 환경 설정 객체 생성
 const config = {
@@ -22,7 +25,7 @@ const config = {
         height: 1080                       // 기본 해상도 세로
     },
     // 2. 게임에 등록할 씬들의 배열 (앞에 있는 것부터 실행됨)
-    scene:[PreloadScene,GameScene,InventoryScene]
+    scene:[PreloadScene,GameScene,UIScene,TooltipScene, InventoryScene]
 };
 
 // 3. Phaser 게임 인스턴스 생성 (게임 시작!)
