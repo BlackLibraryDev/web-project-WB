@@ -49,7 +49,7 @@ export default class TooltipScene extends Phaser.Scene {
         const str =weight.toString();
         this.weightText.setText( `⚖️${ str.includes('.') ? str : str + '.0' }` );
 
-        this.descText.setText(itemData.description || '상세 설명이 없습니다.');
+        this.descText.setText(itemData.count || '상세 설명이 없습니다.');
 
         // 텍스트 길이에 맞춰 배경 세로 크기 동적 조절 (센스 꿀팁!)
         const textBottom = this.descText.y + this.descText.displayHeight;

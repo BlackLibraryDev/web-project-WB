@@ -11,9 +11,26 @@ export default class GameScene extends Phaser.Scene {
         // PreloadScene에서 미리 로드한 'playerSkin'을 그대로 사용합니다.
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
-
         this.player = new Player(this, 400, 300, 'tailer');
         this.player.speed = 300; // 플레이어 속도 설정
+
+
+        // 1. 바닥에 떨어진 아이템들을 모아둘 물리 그룹 생성
+        this.groundItems = this.physics.add.group();
+
+        // 2. 플레이어와 바닥 아이템 그룹이 겹치면(Overlap) 줍기 함수 호출 설정
+        // collide가 아닌 overlap을 써야 물리적으로 튕기지 않고 부드럽게 통과하며 이벤트를 처리합니다.
+        this.physics.add.overlap(
+            this.player, 
+            this.groundItems, 
+            this.handlePickupItem, 
+            null, 
+            this
+        );
+
+        
+
+        
         this.player.addItem( this.getItem('apple', 40));
         this.player.addItem( this.getItem('saw'));
         this.player.addItem( this.getItem('sword'));
@@ -44,8 +61,8 @@ export default class GameScene extends Phaser.Scene {
         //키보드 입력
         this.input.keyboard.on('keydown-I', () => {
             // 1. 게임 화면은 일시정지 (물리엔진, 타이머 등이 멈춤)
-            this.scene.pause(); 
-            
+            //this.scene.pause(); 
+            if(this.scene.isActive('InventoryScene'))return;
             // 2. 인벤토리 씬을 위에 겹쳐서 실행 (launch는 병렬 실행을 뜻함)
             // 캐릭터의 아이템 데이터(inventoryData)를 인벤토리 씬으로 넘겨줄 수 있습니다.
             this.scene.launch('InventoryScene', { items: this.player.inventory });
@@ -134,15 +151,84 @@ export default class GameScene extends Phaser.Scene {
             item.maxFresh = 100;
             item.fresh = _num // 이제 완벽히 개별적인 랜덤 값이 유지됩니다.
         }
-        if (item.count !=null) {
-            if(item.count<0){
+         
+        if (item.count!=0) {
+            if(Number(item.count) < 0){
                 item.count = _num;
             }else{
                 item.count = 1; // 기본 개수 초기화
             }
             item.maxCount = 100; // 최대 개수 설정
+        }else{
+            item.count = null;
         }
+        //console.log(`${item.id}:  ${item.count}`);
         // 4. 안전해진 복사본 반환
         return item;
+    }
+    /**
+     * 플레이어가 바닥의 아이템과 접촉했을 때 호출되는 함수
+     * @param {Phaser.GameObjects.GameObject} player - 플레이어 객체
+     * @param {Phaser.GameObjects.Container} droppedItemContainer - 바닥에 떨어진 아이템 컨테이너
+     */
+    handlePickupItem(player, droppedItemContainer) {
+        // 1. 컨테이너에 심어두었던 아이템 데이터 획득
+
+        const itemData = droppedItemContainer.getData('itemData');
+        //console.log(itemData);
+        if (!itemData) return;
+
+        // 2. 현재 인벤토리 배열 가져오기
+        let inv = this.registry.get('playerInventory') || [];
+
+        // ─── 🌟 인벤토리 공간 및 중첩(Stack) 여부 검사 ───
+        if (this.registry.get('InventoryWeightRatio') >=1 ) {
+            // 가방이 가득 찼다면 줍지 못하고 안내 문구 출력 후 종료
+            console.log("❌ 인벤토리가 가득 차서 아이템을 주울 수 없습니다!");
+            return; 
+        }
+        // [가정] 만약 동일한 아이템이 가방에 이미 있고, 겹칠 수 있는 아이템(예: 음식/재료)이라면?
+        // (만약 장비류 아이템이라 겹칠 수 없다면 이 조건문 분기는 생략하거나 대분류를 체크하세요)
+        const existingItem = inv.find(item => item && item.id === itemData.id);
+
+        //console.log(existingItem.count);
+        if (existingItem && existingItem.count!=null ) {
+            // 이미 가방에 있는 아이템이므로 개수만 더해줍니다.
+            existingItem.count = (existingItem.count || 1) + (itemData.count || 1);
+            if(existingItem.count>100){
+                itemData.count = existingItem.count-100;
+                inv.push(itemData);
+                existingItem.count = 100;
+            }
+        } else {
+            // 완전히 새로운 아이템인 경우 가방 빈칸 확인 (최대 20칸)
+            
+            
+            // 빈칸이 없어야 하므로 배열 맨 뒤에 차곡차곡 push
+            // 주울 때 개수 정보가 유실되지 않도록 기본값 보정
+            //if (!itemData.count) itemData.count = 1; 
+            inv.push(itemData);
+        }
+
+        // 3. 갱신된 인벤토리 데이터를 레지스트리에 저장 (화면이 열려있다면 실시간 자동 리렌더링됨)
+        this.registry.set('playerInventory', inv);
+
+        // 4. 줍기 연출 (뿅 하고 사라지는 트윈 애니메이션 후 삭제)
+        // 연동 중에 중복 충돌이 일어나 데이터가 뻥튀기되는 것을 막기 위해 물리 바디부터 즉시 비활성화합니다.
+        droppedItemContainer.body.enable = false; 
+
+        console.log(`🎒 아이템 획득: ${itemData.id}`);
+
+        this.tweens.add({
+            targets: droppedItemContainer,
+            scale: 0,
+            y: droppedItemContainer.y - 30, // 살짝 위로 올라가며 사라지는 연출
+            duration: 150,
+            ease: 'Power1',
+            onComplete: () => {
+                // 애니메이션이 끝나면 메모리에서 객체 완전 파괴
+                droppedItemContainer.destroy();
+            }
+        });
     }
 }

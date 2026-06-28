@@ -16,7 +16,6 @@ export default class InventoryScene extends Phaser.Scene {
 
         // 2. 🌟 중요: 아이템들을 담아둘 'UI 그룹' 생성
         this.itemGroup = this.add.group();
-
         this.renderInventory();
 
         // 2. 레지스트리가 업데이트되면 자동으로 UI 새로고침
@@ -33,7 +32,7 @@ export default class InventoryScene extends Phaser.Scene {
 
     closeInventory() {
         // 1. 깨울 씬을 먼저 Resume (다시 돌리기)
-        this.scene.resume('GameScene');
+        //this.scene.resume('GameScene');
         // 2. 자기 자신(인벤토리)은 정지 및 숨김
         this.scene.stop();
     }
@@ -41,9 +40,17 @@ export default class InventoryScene extends Phaser.Scene {
    renderInventory() {
         // [A] 🌟 핵심: 새로운 그림을 그리기 전에, 기존에 그룹에 있던 아이템들만 싹 지웁니다.
         // clear(true, true) -> 첫 번째 true: 그룹에서 제거, 두 번째 true: 실제 게임 화면에서 파괴(Destroy)
-        if (this.itemGroup) {
-            this.itemGroup.clear(true, true);
+        if (!this.sys || !this.sys.scene || !this.itemGroup) {
+            return;
         }
+        if (typeof this.itemGroup.clear !== 'function' || !this.itemGroup.scene) {
+        return;
+        }
+
+        try {
+            // 기존 코드: 안전하게 내부 오브젝트들을 싹 지우고 새로 그리기 시작
+            this.itemGroup.clear(true, true);
+        
 
         const playerInventory = this.registry.get('playerInventory') || [];
         const width = this.cameras.main.width;
@@ -327,13 +334,19 @@ export default class InventoryScene extends Phaser.Scene {
 
             // 🗑️ 케이스 A: [버리기] 휴지통에 드롭했을 때
             if (targetType === 'trash') {
+                const player= this.scene.get('GameScene').player;
+
                 if (typeof fromIndex === 'string') {
                     // 🌟 장착창('weapon', 'armor' 등)에서 바로 휴지통으로 던진 경우
-                    console.log(`${fromIndex} 부위 아이템 버림:`, this.registry.get(`equipped_${fromIndex}`));
+
+                    player.dropItem( this.registry.get(`equipped_${fromIndex}`) );
+                    //console.log(`${fromIndex} 부위 아이템 버림:`, this.registry.get(`equipped_${fromIndex}`));
                     this.registry.set(`equipped_${fromIndex}`, null);
                 } else {
                     // 가방(인덱스 숫자)에서 버린 경우 앞으로 당기기
-                    console.log('가방에서 아이템 버림:', inv[fromIndex]);
+                    
+                    player.dropItem(inv[fromIndex]);
+                    //console.log('가방에서 아이템 버림:', inv[fromIndex]);
                     inv.splice(fromIndex, 1);
                 }
                 
@@ -420,6 +433,11 @@ export default class InventoryScene extends Phaser.Scene {
             }
         });
         this.drawWeightBar() ;
+        } catch (error) {
+            // 만약의 상황을 대비한 예외 처리 (에러로 게임이 튕기는 것을 방지)
+            console.warn("렌더링 정리 중 일시적 오류 무시:", error);
+            return;
+        }
     }
 
     drawWeightBar() {
@@ -437,10 +455,10 @@ export default class InventoryScene extends Phaser.Scene {
         }, 0);
 
         const maxWeight = 10000; // 가방 최대 무게 제한
-        
         // 비율 계산 (0.0 ~ 1.0 사이로 안전하게 고정)
         const weightRatio = Phaser.Math.Clamp(currentWeight / maxWeight, 0, 1);
-
+        
+        this.registry.set('InventoryWeightRatio', weightRatio);
         // 2. UI 좌표 및 크기 설정
         const barX = centerX - 160;       // 가방 슬롯 시작 정렬과 맞춤
         const barY = centerY*2 - 200;       // 인벤토리 창 하단 부근

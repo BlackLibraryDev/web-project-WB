@@ -35,10 +35,10 @@ export default class UIScene extends Phaser.Scene {
         if (this.scene.isActive('InventoryScene')) {
             this.scene.stop('InventoryScene');
             // 메인 게임 씬이 일시정지 상태였다면 다시 재개(Resume)
-            this.scene.resume('GameScene'); 
+            //this.scene.resume('GameScene'); 
         } else {
             // 인벤토리 씬을 켜고 메인 게임을 일시정지시킵니다.
-            this.scene.pause('GameScene');
+            //this.scene.pause('GameScene');
             this.scene.launch('InventoryScene'); // launch는 병렬로 씬을 실행합니다.
         }
     }
