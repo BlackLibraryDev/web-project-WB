@@ -11,12 +11,14 @@ export default class GameScene extends Phaser.Scene {
         // PreloadScene에서 미리 로드한 'playerSkin'을 그대로 사용합니다.
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
-        this.player = new Player(this, 400, 300, 'tailer');
+        this.player = new Player(this, width/2, height/2, 'tailer');
         this.player.speed = 300; // 플레이어 속도 설정
 
 
         // 1. 바닥에 떨어진 아이템들을 모아둘 물리 그룹 생성
         this.groundItems = this.physics.add.group();
+        // 3. 몹(몬스터) 그룹 생성
+        this.mobs = this.physics.add.group();
 
         // 2. 플레이어와 바닥 아이템 그룹이 겹치면(Overlap) 줍기 함수 호출 설정
         // collide가 아닌 overlap을 써야 물리적으로 튕기지 않고 부드럽게 통과하며 이벤트를 처리합니다.
@@ -27,6 +29,12 @@ export default class GameScene extends Phaser.Scene {
             null, 
             this
         );
+
+        
+        // 예시: 나무 그루 랜덤 생성하기
+        for (let i = 0; i < 3; i++) {
+            this.spawnRandomTree();
+        }
 
         
 
@@ -57,8 +65,11 @@ export default class GameScene extends Phaser.Scene {
             thumb: this.add.circle(0, 0, 50, 0xcccccc, 0.8),
             dir: '8dir', forceMin: 16, enable: true
         });
-
+        
         //키보드 입력
+        // 스페이스바 키 등록
+        this.attackKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
         this.input.keyboard.on('keydown-I', () => {
             // 1. 게임 화면은 일시정지 (물리엔진, 타이머 등이 멈춤)
             //this.scene.pause(); 
@@ -67,9 +78,18 @@ export default class GameScene extends Phaser.Scene {
             // 캐릭터의 아이템 데이터(inventoryData)를 인벤토리 씬으로 넘겨줄 수 있습니다.
             this.scene.launch('InventoryScene', { items: this.player.inventory });
         });
+
+
     }
 
     update() {
+        this.handleYSorting();
+
+        // 스페이스바를 누르면 사거리 50픽셀로 공격 실행
+        if (Phaser.Input.Keyboard.JustDown(this.attackKey)) {
+            this.player.attack(); 
+        }
+        
         // (기존에 작성했던 아이소메트릭 이동 알고리즘 및 flipX 로직이 들어가는 곳)
         let dx = 0;
         let dy = 0;
@@ -151,14 +171,15 @@ export default class GameScene extends Phaser.Scene {
             item.maxFresh = 100;
             item.fresh = _num // 이제 완벽히 개별적인 랜덤 값이 유지됩니다.
         }
-         
-        if (item.count!=0) {
+         const _maxCount = Math.abs(item.count);
+        if (Number(item.count)  !=0) {
             if(Number(item.count) < 0){
                 item.count = _num;
             }else{
                 item.count = 1; // 기본 개수 초기화
             }
-            item.maxCount = 100; // 최대 개수 설정
+            //console.log(_maxCount);
+            item.maxCount = _maxCount ; // 최대 개수 설정
         }else{
             item.count = null;
         }
@@ -189,16 +210,16 @@ export default class GameScene extends Phaser.Scene {
         }
         // [가정] 만약 동일한 아이템이 가방에 이미 있고, 겹칠 수 있는 아이템(예: 음식/재료)이라면?
         // (만약 장비류 아이템이라 겹칠 수 없다면 이 조건문 분기는 생략하거나 대분류를 체크하세요)
-        const existingItem = inv.find(item => item && item.id === itemData.id);
+        const existingItem = inv.find(item => item && item.id === itemData.id && (item.count==null || item.count && item.count< item.maxCount));
 
         //console.log(existingItem.count);
         if (existingItem && existingItem.count!=null ) {
             // 이미 가방에 있는 아이템이므로 개수만 더해줍니다.
             existingItem.count = (existingItem.count || 1) + (itemData.count || 1);
-            if(existingItem.count>100){
-                itemData.count = existingItem.count-100;
+            if(existingItem.count> existingItem.maxCount){
+                itemData.count = existingItem.count- existingItem.maxCount;
                 inv.push(itemData);
-                existingItem.count = 100;
+                existingItem.count = existingItem.maxCount;
             }
         } else {
             // 완전히 새로운 아이템인 경우 가방 빈칸 확인 (최대 20칸)
@@ -217,7 +238,7 @@ export default class GameScene extends Phaser.Scene {
         // 연동 중에 중복 충돌이 일어나 데이터가 뻥튀기되는 것을 막기 위해 물리 바디부터 즉시 비활성화합니다.
         droppedItemContainer.body.enable = false; 
 
-        console.log(`🎒 아이템 획득: ${itemData.id}`);
+        //console.log(`🎒 아이템 획득: ${itemData.id}`);
 
         this.tweens.add({
             targets: droppedItemContainer,
@@ -230,5 +251,77 @@ export default class GameScene extends Phaser.Scene {
                 droppedItemContainer.destroy();
             }
         });
+    }
+    handleYSorting(){
+        // 1. 정렬할 대상을 배열로 싹 모읍니다.
+        // 플레이어 + 바닥 아이템 전체 + 몹 전체
+        const targets = [
+            this.player,
+            ...this.groundItems.getChildren(),
+            ...this.mobs.getChildren()
+        ];
+
+        // 2. 각 객체의 Y 좌표를 그대로 depth로 주입합니다.
+        // Phaser 3는 depth 숫자가 클수록 앞(위)에 그려집니다. 
+        targets.forEach(obj => {
+            if (!obj || !obj.active) return;
+
+            // 💡 오브젝트의 종류에 따라 최하단(발밑) Y 좌표를 다르게 계산합니다.
+            let bottomY = obj.y;
+
+            if (obj.body) {
+                // 물리 바디가 있다면, 물리 바디의 맨 아래쪽 Y 좌표(발밑)를 기준으로 삼습니다.
+                bottomY = obj.body.bottom; 
+            } else if (obj.displayHeight) {
+                // 일반 이미지라면 중심점(Origin) 기준 맨 아래쪽 계산
+                bottomY = obj.y + (obj.displayHeight * (1 - obj.originY));
+            }
+
+            // 발밑 좌표를 depth로 지정하면 완벽한 Y-Sorting 완성!
+            obj.depth = bottomY;
+        });
+    }
+
+    /**
+     * 맵의 랜덤한 위치에 상호작용 가능한 나무를 스폰합니다.
+     */
+    spawnRandomTree() {
+        // 1. 맵 크기 안에서 랜덤 좌표 추출 (예: 가로 800, 세로 600 기준)
+        // 캐릭터가 스폰되는 중앙 부근을 피하고 싶다면 범위를 조절하세요.
+        const randomX = Phaser.Math.Between(50, 1850);
+        const randomY = Phaser.Math.Between(50, 750);
+
+        // 2. 나무 스프라이트 생성 ('tree'는 preload 단계에서 로드한 이미지 키값)
+        const tree = this.physics.add.sprite(randomX, randomY, 'tree');
+        
+        // 🌟 3. 요구사항 데이터 심기 (인벤토리 및 HP 스탯)
+        tree.inventory = [this.getItem('wood',1),this.getItem('wood',1),this.getItem('wood',2)];
+        tree.stat = {
+            hp: 10
+        };
+
+        // 4. 물리 설정 (나무는 플레이어가 밀어도 밀리지 않도록 고정)
+        tree.setImmovable(true);
+        tree.body.moves = false;
+
+        // 🌟 5. [중요] 나무의 히트박스를 '기둥 밑동'으로 좁히기
+        // 나무 전체에 충돌을 넣으면 플레이어가 나뭇잎 근처에도 못 가기 때문에,
+        // 충돌 영역을 아래쪽 기둥으로 내려주어야 나뭇잎 뒤로 플레이어가 들어가는 이쁜 연출이 나옵니다.
+        const hitboxWidth = 32;   // 나무 기둥 두께에 맞게 조절
+        const hitboxHeight = 16;  // 나무 기둥 높이에 맞게 조절
+        
+        tree.body.setSize(hitboxWidth, hitboxHeight);
+        
+        // 이미지 맨 아래쪽 중앙으로 히트박스 위치 정렬
+        const offsetX = (tree.width - hitboxWidth) / 2;
+        const offsetY = tree.height - hitboxHeight;
+        tree.body.setOffset(offsetX, offsetY);
+
+        // 6. 플레이어와 나무가 부딪히도록 충돌 설정 (길막 기능)
+        this.physics.add.collider(this.player, tree);
+
+        // 7. 관리 그룹(또는 배열)에 추가하여 Y-Sorting 대상에 포함시킴
+        // 만약 this.mobs가 일반 배열이라면 this.mobs.push(tree); 로 쓰셔도 됩니다.
+        this.mobs.add(tree); 
     }
 }

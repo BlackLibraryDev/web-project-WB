@@ -23,6 +23,8 @@ export default class PreloadScene extends Phaser.Scene {
         this.load.spritesheet('playerSkin', 'assets/player.png', { frameWidth: 128 , frameHeight: 128 });
 
         this.load.spritesheet('tailer', 'assets/tailer.png', { frameWidth: 512 , frameHeight: 1024 });
+
+        this.load.spritesheet('tree', 'assets/wood.png', { frameWidth: 447 , frameHeight: 512 });
         
         // 플러그인 로드
         this.load.plugin('rexvirtualjoystickplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexvirtualjoystickplugin.min.js', true);

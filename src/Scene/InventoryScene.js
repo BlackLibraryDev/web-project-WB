@@ -28,6 +28,9 @@ export default class InventoryScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-I', () => {
             this.closeInventory();
         });
+        this.input.keyboard.on('keydown-ESC', () => {
+            this.closeInventory();
+        });
     }
 
     closeInventory() {
@@ -55,19 +58,19 @@ export default class InventoryScene extends Phaser.Scene {
         const playerInventory = this.registry.get('playerInventory') || [];
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
-        const centerX = this.cameras.main.width / 2;
-        const centerY = this.cameras.main.height / 2;
+        const centerX = width / 2;
+        const centerY = height / 2;
         const startX = centerX - 320;
         const startY = centerY - 150;
         const slotSize = 96;
         const padding = 16;
-        const cols = 8;
+        const cols = 7;
         const iconSize = 64;
 
         // --- 1. 휴지통(버리는 칸) 만들기 ---
-        const trashX = centerX
+        const trashX = centerX;
         const trashY = height-100;
-        const trashBg = this.add.rectangle(trashX, trashY, 300, 80, 0xDD7777)
+        const trashBg = this.add.rectangle(trashX, trashY, 360, 80, 0xDD7777)
                             .setOrigin(0.5)
                             .setStrokeStyle(1, 0xffffff, 0.5);
         this.add.text(trashX , trashY , '🗑️remove', { font: '32px Arial' }).setOrigin(0.5);
@@ -80,8 +83,9 @@ export default class InventoryScene extends Phaser.Scene {
         // 1. 장비 슬롯 설정 정의 (부위별 키값, 위치, 가이드 문구)
         const equipSlots = [
             { key: 'weapon',  x: centerX - 240, y: centerY - 320, label: 'Weapon' },
-            { key: 'armor',   x: centerX - 120,  y: centerY - 320, label: 'Armor' },
-            { key: 'helmet',  x: centerX,       y: centerY - 320, label: 'Helmet' },
+            { key: 'armor',   x: centerX ,      y: centerY - 320, label: 'Armor' },
+            { key: 'helmet',  x: centerX- 120,  y: centerY - 320, label: 'Helmet' },
+            { key: 'pants',   x: centerX + 120,  y: centerY - 320, label: 'Pants' },
             // 추가하고 싶은 부위가 있다면 여기에 한 줄만 더 쓰면 끝납니다!
         ];
         const validKeys = equipSlots.map(slot => slot.key);
@@ -217,7 +221,7 @@ export default class InventoryScene extends Phaser.Scene {
 
                 // 3. 개수 텍스트 생성
                 let countText = null;
-                if (itemData.count > 1) {
+                if (itemData.count > 0) {
                     countText = this.add.text(slotX + slotSize - 6, slotY + slotSize - 6, itemData.count.toString(), {
                         font: 'bold 32px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 3
                     }).setOrigin(1, 1).setDepth(2);
@@ -312,6 +316,22 @@ export default class InventoryScene extends Phaser.Scene {
                             this.registry.set(`equipped_${targetSlotKey}`, itemData);
                             this.registry.set('playerInventory', inv);
                         }else{
+                            //장비아이템이 아닌 경우 중
+
+                            //아이템 갯수가있는 경우 절반으로 나누기[임시]
+                            //추후 팝업창 구현
+                            if(itemData.count!=null){
+                                if(itemData.count>1){
+                                    const div =Math.floor( itemData.count/2);
+                                    const divItem = structuredClone(itemData);
+                                    itemData.count-= div;
+                                    divItem.count = div;
+                                     let inv = this.registry.get('playerInventory') || [];
+                                    inv.splice(i+1,0,divItem);
+                                    this.registry.set('playerInventory', inv);
+                                }
+                            }
+                            //[기타] 사용하기 
                             return;
                         }
                             
@@ -406,6 +426,7 @@ export default class InventoryScene extends Phaser.Scene {
                             inv[toIndex] = temp;
                         }else{
                             inv[toIndex].count += temp.count;
+                            
                             if(inv[toIndex].count > inv[toIndex].maxCount){
                                 //console.log(`합쳐진 아이템이 최대치보다 큽니다.${inv[toIndex].count - inv[toIndex].maxCount} 개 남았습니다. 원래 위치로 되돌립니다.`);
                                 // 합쳐진 아이템이 최대치보다 크면 원래 위치로 되돌리기

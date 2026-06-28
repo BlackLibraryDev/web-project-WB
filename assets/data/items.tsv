@@ -1,5 +1,5 @@
 id	icon	type	subType	price	tags	weight	count
-coin	🪙	payment	bronze	1	#payment	10	-1
+coin	🪙	payment	bronze	1	#payment	10	-100
 apple	🍏	foods	rawfood	100	#food#rawfood#ingredient	100	
 cake	🍰	foods	cooked	400	#food#cooked	120	
 sword	🗡️	weapon	sword	100	#iron	2200	
@@ -12,3 +12,4 @@ potion	💊	fluidContainer	potion	100	#potion	100
 shirt	👕	armor	cloth	20	#cloth	300	
 dress	👗	armor	cloth	100	#cloth	400	
 summerhat	👒	helmet	hat	10	#linen	100	
+wood	🪵	matrial	wood	1	#wood#fire	500	-10
