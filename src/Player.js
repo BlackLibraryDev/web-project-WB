@@ -149,62 +149,75 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         }
     }
     /**
-     * 플레이어 전방으로 공격 히트박스를 생성해 몹이나 나무를 타격합니다.
-     * @param {number} distance - 공격 사거리 (픽셀 단위)
+     * 매 프레임 플레이어의 움직임을 관측하여 360도 바라보는 각도를 갱신합니다.
      */
-    attack(distance = 160) {
-        if (this.isAttacking) return; // 연속 공격 방지 쿨타임
-        this.isAttacking = true;
+    updateRotationByVelocity() {
+        if (!this.body) return;
 
-        this.updateDirectionByVelocity();
+        const vx = this.body.velocity.x;
+        const vy = this.body.velocity.y;
 
-        console.log(`⚔️ 속도 기반 판정 방향: ${this.lastDirection}`);
+        // 플레이어가 완전히 멈춰있을 때는 마지막으로 바라보던 각도를 그대로 유지합니다.
+        if (vx === 0 && vy === 0) return;
 
-        let hitboxX = this.body ? this.body.center.x : this.x;
-        let hitboxY = this.body ? this.body.center.y : this.y;
-        let hitboxWidth = distance;
-        let hitboxHeight = distance;
-        // 바라보는 방향에 따라 히트박스를 'distance'만큼 전방에 배치 및 모양 변형
-        switch (this.lastDirection) {
-            case 'left':
-                hitboxX -= distance;
-                hitboxHeight = 48; // 좌우 공격은 세로로 살짝 넓게
-                break;
-            case 'right':
-                hitboxX += distance;
-                hitboxHeight = 48;
-                break;
-            case 'up':
-                hitboxY -= distance;
-                hitboxWidth = 48; // 상하 공격은 가로로 살짝 넓게
-                break;
-            case 'down':
-                hitboxY += distance;
-                hitboxWidth = 48;
-                break;
+        // 🌟 [핵심] 아크탄젠트(atan2) 함수를 사용하여 X, Y 속도 벡터로 360도 라디안 각도를 추출합니다.
+        // 결과값은 -Math.PI ~ Math.PI 범위로 나옵니다.
+        this.lastAttackAngle = Math.atan2(vy, vx);
+    }
+    /**
+     * 360도 조준 각도 방향으로 사거리(distance)만큼 긴 공격 히트박스를 형성합니다.
+     * @param {number} distance - 공격 사거리 (기본 60픽셀)
+     */
+    attack(distance = 300) {
+        if (this.isAttacking) return;
+        
+        // 공격 직전 마지막 각도를 최신화 (멈춰 서서 때릴 때를 대비)
+        
+        
+        // 혹시 게임 시작 직후 한 번도 안 움직였다면 기본값(0도 = 오른쪽) 설정
+        if (this.lastAttackAngle === undefined) {
+            this.lastAttackAngle = 0; 
         }
 
-        // 2. Phaser 내장 Zone(보이지 않는 영역) 객체로 공격 센서 생성
+        this.isAttacking = true;
+
+        // 1. 공격 센서의 중심점 위치 계산
+        // 플레이어 중심점에서 바라보는 방향으로 사거리의 '절반'만큼 전방에 센서 중심을 둡니다.
+        const centerX = this.body ? this.body.center.x : this.x;
+        const centerY = this.body ? this.body.center.y : this.y;
+
+        // 삼각함수로 전방 배치 좌표 환산
+        const hitboxX = centerX + Math.cos(this.lastAttackAngle) * (distance / 2);
+        const hitboxY = centerY + Math.sin(this.lastAttackAngle) * (distance / 2);
+
+        // 2. 사거리만큼 긴 직사각형 조작 영역(Zone) 생성
+        const hitboxWidth = distance; // 앞으로 뻗어나가는 길이
+        const hitboxHeight = 80;      // 종방향 공격 판정 두께 (칼 궤적 폭)
+
         const attackZone = this.scene.add.zone(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
-        this.scene.physics.add.existing(attackZone); // 물리 엔진 연결
-        attackZone.body.setAllowGravity(false);      // 중력 영향 차단
-        attackZone.body.moves = false;               // 스스로 움직이지 않음
+        this.scene.physics.add.existing(attackZone);
+        attackZone.body.setAllowGravity(false);
+        attackZone.body.moves = false;
 
-        // 🌟 [디버깅용 피드백] 공격 범위 눈으로 확인하기 (개발 완료 후 제거 가능)
-         const debugBox = this.scene.add.rectangle(hitboxX, hitboxY, hitboxWidth, hitboxHeight, 0xff0000, 0.4);
+        // 🌟 [핵심] 조이스틱 조준 각도대로 센서 박스 자체를 360도 회전시킵니다!
+        attackZone.setRotation(this.lastAttackAngle);
 
-        // 3. GameScene의 타격 대상 그룹(mobs)과 오버랩(Overlap) 감지
-        // 딱 한 대만 때리기 위해 overlap 문법을 사용합니다.
+        // 🎨 [디버깅용 시각화] 내 공격이 어디로 나가는지 눈으로 확인하고 싶다면 켜세요!
+        
+        const debugBox = this.scene.add.rectangle(hitboxX, hitboxY, hitboxWidth, hitboxHeight, 0xff0000, 0.4);
+        debugBox.setRotation(this.lastAttackAngle);
+        this.scene.time.delayedCall(120, () => debugBox.destroy());
+        
+
+        // 3. 타격 그룹과의 겹침 감지
         this.scene.physics.add.overlap(attackZone, this.scene.mobs, (zone, target) => {
-            this.handleHitTarget(target);
+            this.handleHitTarget(target); // 타격 처리 로직 (기존과 동일)
         }, null, this);
 
-        // 4. 공격 모션 시간 후 히트박스 및 디버그 박스 삭제 (공격 판정 지속 시간: 0.15초)
-        this.scene.time.deferredDestroy = (obj) => { if(obj) obj.destroy(); };
-        this.scene.time.delayedCall(450, () => {
+        // 4. 짧은 프레임 유지 후 센서 삭제
+        this.scene.time.delayedCall(120, () => {
             attackZone.destroy();
-            debugBox.destroy(); // 디버그 박스 켰을 때 주석 해제
-            this.isAttacking = false; // 공격 제어 해제
+            this.isAttacking = false;
         });
     }
 
@@ -215,7 +228,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         // 이미 피격 쿨타임 중이거나 죽은 대상이면 무시
         if (target.isHitCooltime || (target.stat && target.stat.hp <= 0)) return;
 
-        // 타격 대상에게 0.2초간 무적(피격 쿨타임) 부여하여 다단히트 버그 방지
+        // 타격 대상에게 0.5초간 무적(피격 쿨타임) 부여하여 다단히트 버그 방지
         target.isHitCooltime = true;
         this.scene.time.delayedCall(500, () => { target.isHitCooltime = false; });
 

@@ -57,18 +57,24 @@ export default class GameScene extends Phaser.Scene {
 
         // 키보드 및 조이스틱 설정
         this.cursors = this.input.keyboard.createCursorKeys();
-        this.wasd = this.input.keyboard.addKeys('W,A,S,D');
+        this.wasd = this.input.keyboard.addKeys({
+            up: Phaser.Input.Keyboard.KeyCodes.W,
+            down: Phaser.Input.Keyboard.KeyCodes.S,
+            left: Phaser.Input.Keyboard.KeyCodes.A,
+            right: Phaser.Input.Keyboard.KeyCodes.D
+        }, true, true);
 
+        /*
         this.joyStick = this.plugins.get('rexvirtualjoystickplugin').add(this, {
             x: 160, y: height-160, radius: 120,
             base: this.add.circle(0, 0, 90, 0x888888, 0.5),
             thumb: this.add.circle(0, 0, 50, 0xcccccc, 0.8),
             dir: '8dir', forceMin: 16, enable: true
         });
-        
+        */
         //키보드 입력
         // 스페이스바 키 등록
-        this.attackKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        this.attackKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE,true,true);
 
         this.input.keyboard.on('keydown-I', () => {
             // 1. 게임 화면은 일시정지 (물리엔진, 타이머 등이 멈춤)
@@ -81,7 +87,9 @@ export default class GameScene extends Phaser.Scene {
 
 
     }
-
+    handleJoystickInput(_joyStick){
+        this.joyStick = _joyStick;
+    }
     update() {
         this.handleYSorting();
 
@@ -90,19 +98,20 @@ export default class GameScene extends Phaser.Scene {
             this.player.attack(); 
         }
         
+        
         // (기존에 작성했던 아이소메트릭 이동 알고리즘 및 flipX 로직이 들어가는 곳)
         let dx = 0;
         let dy = 0;
 
         // --- 1. 키보드 입력 감지 ---
-        if (this.cursors.left.isDown || this.wasd.A.isDown) dx = -1;
-        else if (this.cursors.right.isDown || this.wasd.D.isDown) dx = 1;
+        if (this.cursors.left.isDown || this.wasd.left.isDown) dx = -1;
+        else if (this.cursors.right.isDown || this.wasd.right.isDown) dx = 1;
 
-        if (this.cursors.up.isDown || this.wasd.W.isDown) dy = -1;
-        else if (this.cursors.down.isDown || this.wasd.S.isDown) dy = 1;
+        if (this.cursors.up.isDown || this.wasd.up.isDown) dy = -1;
+        else if (this.cursors.down.isDown || this.wasd.down.isDown) dy = 1;
 
         // --- 2. 조이스틱 입력 감지 (키보드 입력이 없을 때 적용) ---
-        if (dx === 0 && dy === 0 && this.joyStick.pointer) {
+        if (dx === 0 && dy === 0 && this.joyStick!=null && this.joyStick.pointer) {
             // 조이스틱의 각도(라디안)를 받아옴
             if (this.joyStick.force > 0) {
                 dx = Math.cos(this.joyStick.angle * Math.PI / 180);
@@ -154,7 +163,11 @@ export default class GameScene extends Phaser.Scene {
             this.player.anims.play('idle', true);
              this.player.anims.stop();
         }
+        this.player.updateRotationByVelocity();
     }
+
+    
+
     getItem(id, num = -1){
         // 레지스트리에서 로드된 정적 마스터 DB 꺼내오기
         const itemDB = this.registry.get('ITEM_DATABASE');
