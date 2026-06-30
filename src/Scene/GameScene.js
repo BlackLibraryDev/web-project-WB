@@ -11,8 +11,12 @@ export default class GameScene extends Phaser.Scene {
         // PreloadScene에서 미리 로드한 'playerSkin'을 그대로 사용합니다.
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
+        this.offsetX = 0;
+        this.offsetY = 100;
         this.player = new Player(this, width/2, height/2, 'tailer');
         this.player.speed = 300; // 플레이어 속도 설정
+
+        
 
 
         // 1. 바닥에 떨어진 아이템들을 모아둘 물리 그룹 생성
@@ -32,13 +36,18 @@ export default class GameScene extends Phaser.Scene {
 
         
         // 예시: 나무 그루 랜덤 생성하기
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 12; i++) {
             this.spawnRandomTree();
         }
 
-        
+        // 1. 기본 카메라 세팅 (플레이어를 중앙에 두고 따라다님)
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        // 기본 오프셋은 0, 0 (플레이어가 화면 정중앙)
+        this.cameras.main.setFollowOffset(0, this.offsetY);
 
-        
+        /* 
+        TEST 
+        */
         this.player.addItem( this.getItem('apple', 40));
         this.player.addItem( this.getItem('saw'));
         this.player.addItem( this.getItem('sword'));
@@ -90,6 +99,40 @@ export default class GameScene extends Phaser.Scene {
     handleJoystickInput(_joyStick){
         this.joyStick = _joyStick;
     }
+    /**
+     * 인벤토리 개폐 여부에 따라 카메라 초점을 부드럽게 이동시킵니다.
+     * @param {boolean} isInventoryOpen - 인벤토리가 열렸는지 여부
+     */
+    setCameraFocusForInventory(isInventoryOpen) {
+        const targetOffsetX = isInventoryOpen ? -450 : 0;
+
+        if (this.cameraTween) this.cameraTween.stop();
+
+        // 🌟 [안전한 수정] 언더바(_) 변수 대신 공식 프로퍼티나 메서드를 사용합니다.
+        // 현재 카메라의 X 오프셋 값을 안전하게 가져옵니다 (없으면 0으로 초기화)
+        const currentX = this.cameras.main.followOffsetX !== undefined 
+            ? this.cameras.main.followOffsetX 
+            : (this.cameras.main._followOffset ? this.cameras.main._followOffset.x : 0);
+
+        // 일반 자바스크립트 객체에 시작값 주입
+        const tweenData = { currentX: currentX };
+
+        this.cameraTween = this.tweens.add({
+            targets: tweenData,
+            currentX: targetOffsetX, // 목표 수치 (150 또는 0)
+            duration: 300,
+            ease: 'Cubic.easeOut',
+            onUpdate: () => {
+                // 🎯 실시간으로 변하는 수치를 카메라 오프셋에 안전하게 주입
+                this.cameras.main.setFollowOffset(tweenData.currentX, this.offsetY);
+            },
+            onComplete: () => {
+                // 완료 후 최종 목적지 값 고정
+                this.cameras.main.setFollowOffset(targetOffsetX, this.offsetY);
+            }
+        });
+    }
+
     update() {
         this.handleYSorting();
 
@@ -168,28 +211,71 @@ export default class GameScene extends Phaser.Scene {
 
     
 
-    getItem(id, num = -1){
+    getItem(id, num = -1, data=null){
         // 레지스트리에서 로드된 정적 마스터 DB 꺼내오기
         const itemDB = this.registry.get('ITEM_DATABASE');
         const baseItem = itemDB[id];
-        const _num = num<0 ? Phaser.Math.Between(1, 100) : num; // 랜덤 개수 설정
         if (!baseItem) return;
 
-        // 2. [순서 변경] 원본을 먼저 안전하게 깊은 복사합니다.
+        // 2.  원본을 먼저 안전하게 깊은 복사합니다.
         const item = structuredClone(baseItem); 
+        const _num = num<0 ? Phaser.Math.Between(1, 100) : num; // 랜덤 개수 설정
+        const _maxCount = Math.abs(item.count)||null;
+        const count = data!=null? data.count : null;
+        const fresh = data!=null? data.fresh : null;
+        const fluidType = data!=null? data.fluidType : item.subType;
+        const amount = data!=null? data.amount : null;
+        //console.log(`count:${count}, fresh:${fresh}` );
+
 
         // 3. 복사본(item)을 대상으로 데이터를 초기화 및 추가합니다.
         if (item.type === 'foods') {
             //item.count = 1;
             item.maxFresh = 100;
-            item.fresh = _num // 이제 완벽히 개별적인 랜덤 값이 유지됩니다.
+            item.fresh =fresh || _num // 이제 완벽히 개별적인 랜덤 값이 유지됩니다.
+            item.useItem = ()=>{
+                console.log(`::eat ${item.id} (fresh:${item.fresh}/${item.maxFresh})`);
+                item.id='';
+                const inv = this.registry.get('playerInventory') || [];
+                for(let i =0 ; i<inv.length; i++){
+                    if(inv[i].id=='') { inv.splice(i,1);i--} 
+                }
+                this.registry.set('playerInventory', inv);
+            };
         }
-         const _maxCount = Math.abs(item.count);
+        if (item.type === 'fluidContainer') {
+            const convertIcon = itemDB['bottle'].icon;
+            item.fluidType = fluidType || 'empty';
+            item.subType =null;
+            item.useItem = ()=>{
+                
+                if(item.amount >0){
+                    console.log(`::drink ${item.id}, ${item.amount}cc`);
+                    item.amount = 0;
+                    item.fluidType = 'empty';
+                    item.icon = convertIcon;
+                    item.id = 'bottle';
+                    const inv = this.registry.get('playerInventory') || [];
+                    this.registry.set('playerInventory', inv);
+                }
+            };
+            if(item.fluidType=='empty'){
+                item.icon = convertIcon;
+                item.id = 'bottle';
+                item.amount =0;
+                
+            }else{
+                item.amount =  amount || _num;
+            }
+            
+            item.maxAmount = 100;
+        }
+         
         if (Number(item.count)  !=0) {
             if(Number(item.count) < 0){
-                item.count = _num;
+                item.count = count || _num;
             }else{
-                item.count = 1; // 기본 개수 초기화
+                item.count = count || 1; // 기본 개수 초기화
             }
             //console.log(_maxCount);
             item.maxCount = _maxCount ; // 최대 개수 설정
@@ -199,6 +285,28 @@ export default class GameScene extends Phaser.Scene {
         //console.log(`${item.id}:  ${item.count}`);
         // 4. 안전해진 복사본 반환
         return item;
+    }
+    calculateInventoryWeight(){
+         // 1. 무게 데이터 가져오기 (현재 무게 계산 및 최대 무게 설정)
+        const playerInventory = this.registry.get('playerInventory') || [];
+        
+        // 가방 안의 모든 아이템 무게 합산 (아이템 데이터에 weight 속성이 있다고 가정, 없으면 기본값 1)
+        let currentWeight = playerInventory.reduce((sum, item) => {
+            if (!item) return sum;
+            
+            const fluidWeight = item.amount!=null? item.amount : 0;
+
+            const itemWeight = fluidWeight + item.weight !== undefined ? item.weight : 1; 
+            return sum + (itemWeight * (item.count || 1));
+        }, 0);
+
+        const maxWeight = this.registry.get('maxWeight') || 10000; // 가방 최대 무게 제한
+        // 비율 계산 (0.0 ~ 1.0 사이로 안전하게 고정)
+        const weightRatio = Phaser.Math.Clamp(currentWeight / maxWeight, 0, 1);
+        
+        this.registry.set('InventoryWeight', currentWeight);
+        this.registry.set('InventoryWeightRatio', weightRatio);
+        this.registry.set('maxWeight',maxWeight);
     }
     /**
      * 플레이어가 바닥의 아이템과 접촉했을 때 호출되는 함수
@@ -216,6 +324,7 @@ export default class GameScene extends Phaser.Scene {
         let inv = this.registry.get('playerInventory') || [];
 
         // ─── 🌟 인벤토리 공간 및 중첩(Stack) 여부 검사 ───
+        this.calculateInventoryWeight();
         if (this.registry.get('InventoryWeightRatio') >=1 ) {
             // 가방이 가득 찼다면 줍지 못하고 안내 문구 출력 후 종료
             console.log("❌ 인벤토리가 가득 차서 아이템을 주울 수 없습니다!");
@@ -299,42 +408,61 @@ export default class GameScene extends Phaser.Scene {
      * 맵의 랜덤한 위치에 상호작용 가능한 나무를 스폰합니다.
      */
     spawnRandomTree() {
-        // 1. 맵 크기 안에서 랜덤 좌표 추출 (예: 가로 800, 세로 600 기준)
-        // 캐릭터가 스폰되는 중앙 부근을 피하고 싶다면 범위를 조절하세요.
-        const randomX = Phaser.Math.Between(50, 1850);
-        const randomY = Phaser.Math.Between(50, 750);
+        // 1. 맵 크기 안에서 랜덤 좌표 추출
+        const randomX = Phaser.Math.Between(-500, 2500);
+        const randomY = Phaser.Math.Between(-200, 1200);
 
-        // 2. 나무 스프라이트 생성 ('tree'는 preload 단계에서 로드한 이미지 키값)
-        const tree = this.physics.add.sprite(randomX, randomY, 'tree');
+        // 🌟 2. 빈 컨테이너 생성 후 물리 엔진 적용
+        const tree = this.add.container(randomX, randomY);
+        this.physics.add.existing(tree); // 아케이드 물리 바디 부여
+
+        // 🌟 3. 컨테이너 내부에 이모지 텍스트 추가
+        // 컨테이너 중심(0, 0)을 기준으로 이모지가 이쁘게 안착하도록 setOrigin(0.5)을 줍니다.
+        // 1. 사용할 나무 이모지들을 배열로 선언
+        const treeEmojis = ['🌲', '🌳', '🌴', '🎄'];
+        const randomEmoji = Phaser.Utils.Array.GetRandom(treeEmojis);
+        const size = Phaser.Math.Between(226, 360);
+
+        const treeText = this.add.text(0, 0, randomEmoji , { font: `${size}px Arial` }).setOrigin(0.5, 0.8);
+        tree.add(treeText);
         
-        // 🌟 3. 요구사항 데이터 심기 (인벤토리 및 HP 스탯)
-        tree.inventory = [this.getItem('wood',1),this.getItem('wood',1),this.getItem('wood',2)];
-        tree.stat = {
-            hp: 10
+        // 4. 요구사항 데이터 심기
+        tree.inventory = [this.getItem('wood',1), this.getItem('wood',1)];
+        tree.stat = { 
+            hp: 10 ,
+            icon:randomEmoji
         };
+        if(randomEmoji=='🌳' && Math.random()<0.6){
+            tree.inventory.push( this.getItem('apple',100));
+        }
+        //console.log(tree.inventory);
 
-        // 4. 물리 설정 (나무는 플레이어가 밀어도 밀리지 않도록 고정)
-        tree.setImmovable(true);
-        tree.body.moves = false;
+        // 5. 물리 설정 (밀리지 않게 고정)
+        if (tree.body) {
+            tree.body.setImmovable(true); // 컨테이너가 아닌 body에 직접 setImmovable을 실행합니다.
+            tree.body.moves = false;      // 물리 이동 연산 끄기 (기존 동일)
+        }
 
-        // 🌟 5. [중요] 나무의 히트박스를 '기둥 밑동'으로 좁히기
-        // 나무 전체에 충돌을 넣으면 플레이어가 나뭇잎 근처에도 못 가기 때문에,
-        // 충돌 영역을 아래쪽 기둥으로 내려주어야 나뭇잎 뒤로 플레이어가 들어가는 이쁜 연출이 나옵니다.
-        const hitboxWidth = 32;   // 나무 기둥 두께에 맞게 조절
-        const hitboxHeight = 16;  // 나무 기둥 높이에 맞게 조절
+        // 🌟 6. [매우 중요] 컨테이너 물리 히트박스(Body) 및 오프셋 재설정
+        // 컨테이너는 초기 크기가 0이라서 body.setSize를 명시적으로 꼭 지정해 주어야 충돌이 먹힙니다.
+        // 나무 밑동(기둥) 부분만 길막이 되도록 좁게 잡아줍니다.
+        const hitboxWidth = 48;  // 기둥 두께
+        const hitboxHeight = 36; // 기둥 높이
         
         tree.body.setSize(hitboxWidth, hitboxHeight);
         
-        // 이미지 맨 아래쪽 중앙으로 히트박스 위치 정렬
-        const offsetX = (tree.width - hitboxWidth) / 2;
-        const offsetY = tree.height - hitboxHeight;
-        tree.body.setOffset(offsetX, offsetY);
+        // 💡 컨테이너 중심(0,0)을 기준으로 히트박스를 '발밑(밑동)'으로 내리는 오프셋 공식
+        // 이모지 텍스트의 크기 절반만큼 아래로 내려서 기둥 위치에 정확히 맞춥니다.
+        tree.body.setOffset(-hitboxWidth / 2, 8); 
 
-        // 6. 플레이어와 나무가 부딪히도록 충돌 설정 (길막 기능)
+        // 7. 플레이어와 나무가 부딪히도록 충돌 설정
         this.physics.add.collider(this.player, tree);
 
-        // 7. 관리 그룹(또는 배열)에 추가하여 Y-Sorting 대상에 포함시킴
-        // 만약 this.mobs가 일반 배열이라면 this.mobs.push(tree); 로 쓰셔도 됩니다.
+        // 8. 관리 그룹에 추가하여 Y-Sorting 시스템에 편입
         this.mobs.add(tree); 
     }
+
+    
+
+
 }

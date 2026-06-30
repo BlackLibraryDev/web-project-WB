@@ -126,4 +126,59 @@ export class Buttons {
 
         return container;
     }
+    static createRoundButton(scene, x, y, buttonRadius ,text, callback){
+
+        const normalColor = 0xdd4b39;
+
+        // 2. 배경 원 생성 
+        const bg = scene.add.circle(0, 0, buttonRadius, normalColor)
+                       .setStrokeStyle(1, 0xffffff, 0.3);
+
+        // 3. 버튼 텍스트 생성
+        const btnText = scene.add.text(0, 0, text, {
+            font: 'bold 48px Arial',
+            fill: '#ffffff'
+        }).setOrigin(0.5);
+
+        // 4. 배경과 텍스트를 하나의 Container로 묶음 (좌표 관리가 편해집니다)
+        const container = scene.add.container(x, y, [bg, btnText]);
+        container.bg = bg; // 배경 원을 컨테이너에 속성으로 추가
+        container.text = btnText;
+
+        // 5. 컨테이너 크기 지정 및 상호작용(Interactive) 활성화
+        container.setSize(buttonRadius*1.5 ,buttonRadius*1.5);
+        container.setInteractive({ useHandCursor: true });
+
+        // ─── 마우스 이벤트 리스너 등록 ───
+
+        // 마우스가 버튼 위에 올라왔을 때 (Hover)
+        container.on('pointerover', () => {
+            //bg.setFillStyle(hoverColor);
+            container.setScale(1.05); // 살짝 커지는 효과 추가
+        });
+
+        // 마우스가 버튼에서 나갔을 때 (Out)
+        container.on('pointerout', () => {
+            //bg.setFillStyle(normalColor);
+            container.setScale(1.0); // 원래 크기로
+        });
+
+        // 마우스를 누르는 순간 (Down)
+        container.on('pointerdown', () => {
+           // bg.setFillStyle(clickColor);
+            container.setScale(0.95); // 살짝 눌리는 효과
+            // 지정된 콜백 함수 실행
+            if (callback) callback();
+        });
+
+        // 마우스를 뗐을 때 (Up / 클릭 완료)
+        container.on('pointerup', () => {
+            //bg.setFillStyle(hoverColor);
+            container.setScale(1.05);
+            
+            
+        });
+
+        return container;
+    }
 }

@@ -43,18 +43,20 @@ export default class TooltipScene extends Phaser.Scene {
         // 데이터 연결
         this.titleText.setText(`${itemData.icon}${itemData.id || '알 수 없는 아이템'} ${itemData.count > 1 ? `x${itemData.count}` : ''  }`);
         
-        this.tagText.setText(`${itemData.type} / ${itemData.subType}` || '');
+        this.tagText.setText(`${itemData.type} / ${itemData.subType||itemData.fluidType}` || '');
 
-        const weight = itemData.count!=null ? (itemData.weight/1000*itemData.count) : (itemData.weight/1000) || 0;
+        const fluidWeight = itemData.amount!=null? itemData.amount/1000 : 0;
+        const weight =fluidWeight + (itemData.count!=null ? (itemData.weight/1000*itemData.count) : (itemData.weight/1000) || 0);
         const str =weight.toString();
         this.weightText.setText( `⚖️${ str.includes('.') ? str : str + '.0' }` );
 
-        this.descText.setText(itemData.count || '상세 설명이 없습니다.');
+        this.descText.setText(itemData.description || '상세 설명이 없습니다.');
 
         // 텍스트 길이에 맞춰 배경 세로 크기 동적 조절 (센스 꿀팁!)
         const textBottom = this.descText.y + this.descText.displayHeight;
         const dynamicHeight = Math.max(100, textBottom + 12);
         const dynamicWidth = 280; // 가로는 고정
+
         this.bg.clear();
         // 1. 내부 채우기 색상 설정 (배경)
         this.bg.fillStyle(0x111111, 0.95);

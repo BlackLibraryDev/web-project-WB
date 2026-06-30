@@ -24,6 +24,9 @@ const config = {
         width: 1920,                       // 기본 해상도 가로
         height: 1080                       // 기본 해상도 세로
     },
+    input: {
+        activePointers: 3
+    },
     // 2. 게임에 등록할 씬들의 배열 (앞에 있는 것부터 실행됨)
     scene:[PreloadScene,GameScene,UIScene,TooltipScene, InventoryScene]
 };

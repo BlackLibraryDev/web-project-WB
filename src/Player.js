@@ -245,7 +245,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
                 duration: 80,
                 yoyo: true,
                 repeat: 1,
-                onComplete: () => { if (target) { target.alpha = 1; target.clearTint(); } }
+                onComplete: () => { if (target) { target.alpha = 1; } }
             });
 
             // HP가 0 이하가 되면 파괴 및 아이템 드롭 처리

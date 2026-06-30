@@ -4,7 +4,10 @@ export default class InventoryScene extends Phaser.Scene {
     }
 
     create() {
-        
+        const gameScene = this.scene.get('GameScene');
+        if (gameScene) {
+            gameScene.setCameraFocusForInventory(true);
+        }
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
 
@@ -37,6 +40,10 @@ export default class InventoryScene extends Phaser.Scene {
         // 1. 깨울 씬을 먼저 Resume (다시 돌리기)
         //this.scene.resume('GameScene');
         // 2. 자기 자신(인벤토리)은 정지 및 숨김
+        const gameScene = this.scene.get('GameScene');
+        if (gameScene) {
+            gameScene.setCameraFocusForInventory(false);
+        }
         this.scene.stop();
     }
 
@@ -155,7 +162,7 @@ export default class InventoryScene extends Phaser.Scene {
                             this.registry.set('playerInventory', inv);
                             
                         }
-
+                        
                     }
                 });
 
@@ -184,7 +191,22 @@ export default class InventoryScene extends Phaser.Scene {
                            .setStrokeStyle(1, 0xffffff, 0.2);
 
             let freshratio = 0;
+            if (itemData.type =='fluidContainer'){
+                //액체류 컨테이너인 경우
+                const freshnessRatio = itemData.amount / itemData.maxAmount;
+                const freshnessColor = Phaser.Display.Color.Interpolate.ColorWithColor(
+                    new Phaser.Display.Color(0, 0, 255), // 파랑
+                    new Phaser.Display.Color(0, 255, 0), // 초록
+                    100,
+                    freshnessRatio * 100
+                );
+                slotBgColor  = 0x22ddff;
+                freshratio = freshnessRatio;
+               
+            }
+
             if (itemData.maxFresh!=null){
+                //신선도가 있는 경우
                 const freshnessRatio = itemData.fresh / itemData.maxFresh;
                 const freshnessColor = Phaser.Display.Color.Interpolate.ColorWithColor(
                     new Phaser.Display.Color(255, 0, 0), // 빨강
@@ -326,12 +348,22 @@ export default class InventoryScene extends Phaser.Scene {
                                     const divItem = structuredClone(itemData);
                                     itemData.count-= div;
                                     divItem.count = div;
-                                     let inv = this.registry.get('playerInventory') || [];
+                                    let inv = this.registry.get('playerInventory') || [];
                                     inv.splice(i+1,0,divItem);
                                     this.registry.set('playerInventory', inv);
                                 }
                             }
                             //[기타] 사용하기 
+
+                            if(itemData.type == 'fluidContainer' || itemData.type =='foods'){
+                                //마시기
+                                if(itemData.useItem){
+                                    itemData.useItem();
+                                }
+                                
+
+                                
+                            }
                             return;
                         }
                             
@@ -460,26 +492,20 @@ export default class InventoryScene extends Phaser.Scene {
             return;
         }
     }
-
+    
     drawWeightBar() {
         const centerX = this.cameras.main.width / 2;
         const centerY = this.cameras.main.height / 2;
 
         // 1. 무게 데이터 가져오기 (현재 무게 계산 및 최대 무게 설정)
-        const playerInventory = this.registry.get('playerInventory') || [];
-        
-        // 가방 안의 모든 아이템 무게 합산 (아이템 데이터에 weight 속성이 있다고 가정, 없으면 기본값 1)
-        let currentWeight = playerInventory.reduce((sum, item) => {
-            if (!item) return sum;
-            const itemWeight = item.weight !== undefined ? item.weight : 1; 
-            return sum + (itemWeight * (item.count || 1));
-        }, 0);
+        const gameScene = this.scene.get('GameScene');
+        if (gameScene) {
+            gameScene.calculateInventoryWeight();
+        }
+        const maxWeight = this.registry.get('maxWeight') || 10000;
+        const currentWeight = this.registry.get('InventoryWeight');
+        const weightRatio = this.registry.get('InventoryWeightRatio');
 
-        const maxWeight = 10000; // 가방 최대 무게 제한
-        // 비율 계산 (0.0 ~ 1.0 사이로 안전하게 고정)
-        const weightRatio = Phaser.Math.Clamp(currentWeight / maxWeight, 0, 1);
-        
-        this.registry.set('InventoryWeightRatio', weightRatio);
         // 2. UI 좌표 및 크기 설정
         const barX = centerX - 160;       // 가방 슬롯 시작 정렬과 맞춤
         const barY = centerY*2 - 200;       // 인벤토리 창 하단 부근
